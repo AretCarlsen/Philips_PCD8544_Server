@@ -3,11 +3,20 @@
 #include <avr/pgmspace.h>
 #include <util/delay.h>
 
-#include "../common/PCD8544/pcd8544.hpp"
+#include "../drivers/Philips_PCD8544/pcd8544.hpp"
 #include "images.hpp"
 
 // Actually 83.2us
 #define SYSTEM_TIMER_PERIOD_us 83      // Microseconds
+
+// ADC channel count
+#define ADC_CHANNEL_COUNT 2
+// Number of raw readings that are averaged before sinking into the input buffers.
+// About 12,019 readings occur per second (20MHz, /128 prescaler, 13 cycles per measurement),
+// or one every 83.2us. Averaging 120 cuts down to 100 measurements per second (one every 10ms).
+#define ADC_AVERAGED_READINGS 120
+#define ADC_READING_PERIOD (ADC_AVERAGED_READINGS * SYSTEM_TIMER_PERIOD_us)
+
 #define PRIMARY_MEMORY_POOL_LIMIT 1600
 
 #define OUTGOING_PACKET_BUFFER_CAPACITY 3
@@ -20,12 +29,11 @@
 
 // MapOS
 #include "../common/MapOS/main.hpp"
-//#include "../common/MapOS/templateInstantiations.cpp"
 #include "../common/MapOS/uart.hpp"
 
-#include "../common/PCD8544/LCDServer.hpp"
+#include "../drivers/Philips_PCD8544/LCDServer.hpp"
 
-#include "adc.hpp"
+#include "../common/MapOS/adc.hpp"
 
 // Packet sinks
 #define INITIAL_PACKET_SINK_COUNT 2
@@ -108,7 +116,7 @@ while(true){
 
   while(1){
     // Argument is in microseconds.
-    scheduler.process(SYSTEM_TIME);
+    scheduler.process(get_systemTime());
   }
 
   return 0;
