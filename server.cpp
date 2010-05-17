@@ -1,8 +1,12 @@
 
+#include "../globals.hpp"
+/*
 #include <avr/io.h>
 #include <avr/pgmspace.h>
 #include <util/delay.h>
+*/
 
+#include "../drivers/SPI/SPI.hpp"
 #include "../drivers/Philips_PCD8544/pcd8544.hpp"
 #include "images.hpp"
 
@@ -48,7 +52,7 @@ inline void init_LCD(){
 // Initial splash screen
   LcdContrast(0x7F);
   LcdClear();
-  LcdImage(splashScreen2);
+  LcdImage(splashScreen1);
   LcdUpdate();
 // Leave up the splash screen for a half second
   sleep_ms(500);
@@ -66,8 +70,8 @@ inline void init(){
   init_DEBUGprint();
 
   init_ADC();
-// SPI is initialized by LcdInit().
 
+  SPI::init(SPI::FOSC_DIV_8);
   init_LCD();
 
 // Wait for Eeprom to become available
