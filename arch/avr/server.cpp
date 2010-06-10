@@ -1,14 +1,12 @@
 
-#include "../globals.hpp"
-/*
-#include <avr/io.h>
-#include <avr/pgmspace.h>
-#include <util/delay.h>
-*/
+#include <ATcommon/arch/avr/avr.hpp>
+#include <avrlib/rprintf.h>
 
-#include "../drivers/SPI/SPI.hpp"
-#include "../drivers/Philips_PCD8544/pcd8544.hpp"
+#include <AVR_Objects/spi.hpp>
+#include <Philips_PCD8544_driver/arch/avr/Philips_PCD8544.hpp>
 #include "images.hpp"
+
+#include "types.hpp"
 
 // Actually 83.2us
 #define SYSTEM_TIMER_PERIOD_us 83      // Microseconds
@@ -23,65 +21,52 @@
 
 #define PRIMARY_MEMORY_POOL_LIMIT 1600
 
-#define OUTGOING_PACKET_BUFFER_CAPACITY 3
-#define INPUT_BUFFER_CAPACITY 50
-#define OUTPUT_BUFFER_CAPACITY 250
-#define UART_INITIAL_BAUD_RATE 115200
-
-
-#include "../globals.hpp"
-
 // MapOS
-#include "../common/MapOS/main.hpp"
-#include "../common/MapOS/uart.hpp"
-
-#include "../drivers/Philips_PCD8544/LCDServer.hpp"
-
-#include "../common/MapOS/adc.hpp"
-
-// Packet sinks
 #define INITIAL_PACKET_SINK_COUNT 2
-// Process definitions
-#define INITIAL_PROCESS_DEFINITION_COUNT 3
+#define INITIAL_PROCESS_DEFINITION_COUNT 2
+#include <MapOS/arch/avr/main.hpp>
 
-#include "../common/MapOS/verify.hpp"
+// UART MAP/MEP I/O
+#define UART_OUTGOING_PACKET_BUFFER_CAPACITY 3
+#define UART_INPUT_BUFFER_CAPACITY 50
+#define UART_OUTPUT_BUFFER_CAPACITY 250
+#define UART_INITIAL_BAUD_RATE 115200
+#include <MapOS/arch/avr/uart.hpp>
 
-inline void init_LCD(){
-  LcdInit();
+#include <Philips_PCD8544_driver/arch/avr/Philips_PCD8544_Server.hpp>
+
+#include <MapOS/arch/avr/adc.hpp>
+
+inline void init_LCD(LCD_t &lcd){
+  SPI::init(SPI::FOSC_DIV_8);
+
+  lcd.init();
 
 // Initial splash screen
-  LcdContrast(0x7F);
-  LcdClear();
-  LcdImage(splashScreen1);
-  LcdUpdate();
+  lcd.contrast(0x7F);
+  lcd.clear();
+  lcd.image(splashScreen1);
+  lcd.update();
 // Leave up the splash screen for a half second
   sleep_ms(500);
 
 // Clear the LCD
   //LcdContrast(0x00);
-  LcdClear();
-  LcdUpdate();
+  lcd.clear();
+  lcd.update();
 }
 
 inline void init(){
   init_UART();
   rprintfInit(uartSendByte);
-// DEBUGprint init
-  init_DEBUGprint();
 
   init_ADC();
 
-  SPI::init(SPI::FOSC_DIV_8);
-  init_LCD();
-
 // Wait for Eeprom to become available
   eeprom_busy_wait();
-// Verify Eeprom
-  verify_eeprom();
 }
 
-int main()
-{
+void main() {
   init();
 
 // Give the outgoing sink 50ms to simmer down...
@@ -95,12 +80,20 @@ while(true){
 }
 */
 
-#include "../common/MapOS/main.cpp"
+  // Provides kernel sinks (0-1)
+#include <MapOS/arch/avr/main.cpp>
+  // UART MAP/MEP I/O
+#define UART_PACKET_SINK_INDEX 2
+#include <MapOS/arch/avr/uart.cpp>
 
+// State control (nonvolatile save/load)
 #include "StateControlServer.hpp"
 
+// LCD
+  LCD_t lcd;
+  init_LCD(lcd);
 // String LCD server
-  StringLCDServer process_lcdServer;
+  LCDServer_t process_lcdServer(&lcd);
   // Routing graph element
   packetSinks.setExpand(5, &process_lcdServer);
   // Millisecond frequency
@@ -112,17 +105,11 @@ while(true){
   // Half second frequency
   scheduler.add_process(&process_stateControlServer, 500000);
 
-// Make sure outgoing data bus is triggered occasionally.
-  // Half millisecond frequency
-  scheduler.add_process(&process_triggerOutgoing, 500);
-
   DEBUGprint_RARE("Sched st\n");
 
   while(1){
     // Argument is in microseconds.
     scheduler.process(get_systemTime());
   }
-
-  return 0;
 }
 
