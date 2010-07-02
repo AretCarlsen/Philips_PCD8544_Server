@@ -1,3 +1,7 @@
+// Copyright (C) 2010, Aret N Carlsen (aretcarlsen@autonomoustools.com).
+// Philips PCD8544 driver (C++).
+// Licensed under GPLv3 and later versions. See license.txt or <http://www.gnu.org/licenses/>.
+
 
 #include <ATcommon/arch/avr/avr.hpp>
 #include <avrlib/rprintf.h>
