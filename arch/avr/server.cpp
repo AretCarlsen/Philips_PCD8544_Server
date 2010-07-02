@@ -31,7 +31,8 @@
 #define UART_INPUT_BUFFER_CAPACITY 50
 #define UART_OUTPUT_BUFFER_CAPACITY 250
 #define UART_INITIAL_BAUD_RATE 115200
-#include <MapOS/arch/avr/uart.hpp>
+#define UART_PACKET_SINK_INDEX 2
+#include <MapOS/arch/avr/UartComms.hpp>
 
 #include <Philips_PCD8544_driver/arch/avr/Philips_PCD8544_Server.hpp>
 
@@ -57,7 +58,7 @@ inline void init_LCD(LCD_t &lcd){
 }
 
 inline void init(){
-  init_UART();
+  uartComms.init();
   rprintfInit(uartSendByte);
 
   init_ADC();
@@ -82,9 +83,7 @@ while(true){
 
   // Provides kernel sinks (0-1)
 #include <MapOS/arch/avr/main.cpp>
-  // UART MAP/MEP I/O
-#define UART_PACKET_SINK_INDEX 2
-#include <MapOS/arch/avr/uart.cpp>
+#include <MapOS/arch/avr/UartComms.cpp>
 
 // State control (nonvolatile save/load)
 #include "StateControlServer.hpp"
