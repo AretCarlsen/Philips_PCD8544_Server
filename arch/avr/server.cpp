@@ -25,9 +25,18 @@
 
 #define PRIMARY_MEMORY_POOL_LIMIT 1600
 
-// MapOS
-#define INITIAL_PACKET_SINK_COUNT 2
-#define INITIAL_PROCESS_DEFINITION_COUNT 2
+// Packet sinks: 0-Kernel, [1-port], 2-StateControl, 3-LCD1, 4-LCD2 
+#define SCS_PACKET_SINK_INDEX 2
+#define LCD1_PACKET_SINK_INDEX 3
+#define LCD2_PACKET_SINK_INDEX 4
+
+#define MAX_PACKET_SINK_INDEX LCD2_PACKET_SINK_INDEX
+// Processes: uartComms, LCD1 server, LCD2 server, StateControlServer
+#define LOCAL_PROCESS_COUNT 2
+// Fetch MapOS process count.
+#include <MapOS/arch/avr/count.hpp>
+#define INITIAL_PROCESS_COUNT (MAPOS_PROCESS_COUNT + LOCAL_PROCESS_COUNT)
+
 #include <MapOS/arch/avr/main.hpp>
 
 // UART MAP/MEP I/O
@@ -42,9 +51,12 @@
 
 #include <MapOS/arch/avr/adc.hpp>
 
-inline void init_LCD(LCD_t &lcd){
-  SPI::init(SPI::FOSC_DIV_8);
+void DEBUGflush(){
+  uartComms.triggerOutgoing();
+}
 
+template <typename LCD_t>
+inline void init_LCD(LCD_t &lcd){
   lcd.init();
 
 // Initial splash screen
@@ -52,18 +64,21 @@ inline void init_LCD(LCD_t &lcd){
   lcd.clear();
   lcd.image(splashScreen1);
   lcd.update();
-// Leave up the splash screen for a half second
-  sleep_ms(500);
 
+/*
+// Leave up the splash screen a half second
+  sleep_ms(500);
 // Clear the LCD
   //LcdContrast(0x00);
   lcd.clear();
   lcd.update();
+*/
 }
 
 inline void init(){
-  uartComms.init();
+  uartComms.init(UART_INITIAL_BAUD_RATE);
   rprintfInit(uartSendByte);
+//  DEBUGprint("init\n"); uartComms.triggerOutgoing(); while(1) asm("sleep");
 
   init_ADC();
 
@@ -85,26 +100,43 @@ while(true){
 }
 */
 
-  // Provides kernel sinks (0-1)
+// Provides kernel processes and sinks (0-1)
 #include <MapOS/arch/avr/main.cpp>
+// Provides uartComms process.
 #include <MapOS/arch/avr/UartComms.cpp>
 
 // State control (nonvolatile save/load)
 #include "StateControlServer.hpp"
 
-// LCD
-  LCD_t lcd;
-  init_LCD(lcd);
-// String LCD server
-  LCDServer_t process_lcdServer(&lcd);
+// LCD SPI bus. Initializes SPI pins (including SS).
+  SPI::init(SPI::FOSC_DIV_8);
+// LCD 1
+  LCD1_t lcd1;
+  init_LCD(lcd1);
+ // String LCD server
+  DEBUGprint("iLS1;");
+  LCD1Server_t process_lcd1Server(&lcd1);
+  DEBUGprint("sLS1;");
   // Routing graph element
-  packetSinks.setExpand(5, &process_lcdServer);
+  packetSinks.setExpand(LCD1_PACKET_SINK_INDEX, &process_lcd1Server);
   // Millisecond frequency
-  scheduler.add_process(&process_lcdServer, 1000);
+  DEBUGprint("pLS1;");
+  scheduler.add_process(&process_lcd1Server, 1000);
+// LCD 2
+  LCD2_t lcd2;
+  init_LCD(lcd2);
+  DEBUGprint("iLS2;");
+ // String LCD server
+  LCD2Server_t process_lcd2Server(&lcd2);
+  // Routing graph element
+  packetSinks.setExpand(LCD2_PACKET_SINK_INDEX, &process_lcd2Server);
+  // Millisecond frequency
+  scheduler.add_process(&process_lcd2Server, 1000);
 
+  DEBUGprint("iSCS;");
 // State control (save/load)
   // Routing graph element
-  packetSinks.setExpand(4, &process_stateControlServer);
+  packetSinks.setExpand(SCS_PACKET_SINK_INDEX, &process_stateControlServer);
   // Half second frequency
   scheduler.add_process(&process_stateControlServer, 500000);
 
