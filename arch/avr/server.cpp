@@ -27,22 +27,24 @@
 
 // Packet sinks: 0-Kernel, [1-port], 2-StateControl, 3-LCD1, 4-LCD2 
 #define SCS_PACKET_SINK_INDEX 2
-#define LCD1_PACKET_SINK_INDEX 3
-#define LCD2_PACKET_SINK_INDEX 4
+#define LCD1_COMMAND__PACKET_SINK_INDEX 3
+#define LCD1_STRING__PACKET_SINK_INDEX 4
+#define LCD2_COMMAND__PACKET_SINK_INDEX 5
+#define LCD2_STRING__PACKET_SINK_INDEX 6
 
-#define MAX_PACKET_SINK_INDEX LCD2_PACKET_SINK_INDEX
-// Processes: uartComms, LCD1 server, LCD2 server, StateControlServer
-#define LOCAL_PROCESS_COUNT 2
+#define MAX_PACKET_SINK_INDEX LCD2_STRING__PACKET_SINK_INDEX
+// Processes: uartComms, LCD1 servers (2), LCD2 server (2), StateControlServer
+#define LOCAL_PROCESS_COUNT (1 + 2 + 2 + 1)
 // Fetch MapOS process count.
 #include <MapOS/arch/avr/count.hpp>
 #define INITIAL_PROCESS_COUNT (MAPOS_PROCESS_COUNT + LOCAL_PROCESS_COUNT)
 
 #include <MapOS/arch/avr/main.hpp>
 
-// UART MAP/MEP I/O
+// UART MAP/MEP I/O. Define early on to initialize for debugging during other initializations.
 #define UART_OUTGOING_PACKET_BUFFER_CAPACITY 3
-#define UART_INPUT_BUFFER_CAPACITY 50
-#define UART_OUTPUT_BUFFER_CAPACITY 250
+#define UART_INPUT_BUFFER_CAPACITY 20
+#define UART_OUTPUT_BUFFER_CAPACITY 100
 #define UART_INITIAL_BAUD_RATE 115200
 #define UART_PACKET_SINK_INDEX 2
 #include <MapOS/arch/avr/UartComms.hpp>
@@ -76,7 +78,6 @@ inline void init_LCD(LCD_t &lcd){
 }
 
 inline void init(){
-  uartComms.init(UART_INITIAL_BAUD_RATE);
   rprintfInit(uartSendByte);
 //  DEBUGprint("init\n"); uartComms.triggerOutgoing(); while(1) asm("sleep");
 
@@ -92,14 +93,6 @@ void main() {
 // Give the outgoing sink 50ms to simmer down...
   sleep_ms(50);
 
-/*
-while(true){
-// sleep test
-  DEBUGprint("1");
-  sleep_ms(50);
-}
-*/
-
 // Provides kernel processes and sinks (0-1)
 #include <MapOS/arch/avr/main.cpp>
 // Provides uartComms process.
@@ -113,30 +106,33 @@ while(true){
 // LCD 1
   LCD1_t lcd1;
   init_LCD(lcd1);
- // String LCD server
-  DEBUGprint("iLS1;");
-  LCD1Server_t process_lcd1Server(&lcd1);
-  DEBUGprint("sLS1;");
-  // Routing graph element
-  packetSinks.setExpand(LCD1_PACKET_SINK_INDEX, &process_lcd1Server);
-  // Millisecond frequency
-  DEBUGprint("pLS1;");
-  scheduler.add_process(&process_lcd1Server, 1000);
+  // LCD1 servers
+  LCD1CommandServer_t process_lcd1CommandServer(&lcd1);
+  LCD1StringServer_t  process_lcd1StringServer(&lcd1);
+  // Routing graph elements
+  packetSinks.set(LCD1_COMMAND__PACKET_SINK_INDEX, &process_lcd1CommandServer);
+  packetSinks.set( LCD1_STRING__PACKET_SINK_INDEX, &process_lcd1StringServer);
+  // Scheduled processes
+  scheduler.add_process(&process_lcd1CommandServer, 1000);
+  scheduler.add_process( &process_lcd1StringServer, 1000);
 // LCD 2
   LCD2_t lcd2;
   init_LCD(lcd2);
-  DEBUGprint("iLS2;");
  // String LCD server
-  LCD2Server_t process_lcd2Server(&lcd2);
+  LCD2CommandServer_t process_lcd2CommandServer(&lcd2);
+  LCD2StringServer_t  process_lcd2StringServer(&lcd2);
   // Routing graph element
-  packetSinks.setExpand(LCD2_PACKET_SINK_INDEX, &process_lcd2Server);
+  packetSinks.set(LCD2_COMMAND__PACKET_SINK_INDEX, &process_lcd2CommandServer);
+  if(! (packetSinks.set( LCD2_STRING__PACKET_SINK_INDEX, &process_lcd2StringServer))){
+    DEBUGprint_FORCE("sEFLD!\n");
+  }
   // Millisecond frequency
-  scheduler.add_process(&process_lcd2Server, 1000);
+  scheduler.add_process(&process_lcd2CommandServer, 1000);
+  scheduler.add_process( &process_lcd2StringServer, 1000);
 
-  DEBUGprint("iSCS;");
 // State control (save/load)
   // Routing graph element
-  packetSinks.setExpand(SCS_PACKET_SINK_INDEX, &process_stateControlServer);
+  packetSinks.set(SCS_PACKET_SINK_INDEX, &process_stateControlServer);
   // Half second frequency
   scheduler.add_process(&process_stateControlServer, 500000);
 

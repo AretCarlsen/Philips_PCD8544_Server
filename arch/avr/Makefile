@@ -4,7 +4,7 @@
 #
 # Last mod: 2010-05
 
-DEBUG = -DDEBUG
+#DEBUG = -DDEBUG
 
 PROGRAM = server
 SRC     = server.cpp
